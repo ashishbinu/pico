@@ -55,6 +55,20 @@ impl Editor {
                 }
                 self.text.push(a);
             }
+            Key::Backspace => {
+                if let Some(ch) = self.text.pop() {
+                    if ch == '\n' {
+                        self.text.pop();
+                        self.cursor_position = (
+                            1 + self.text.split('\n').last().unwrap().len() as u16,
+                            self.cursor_position.1 - 1,
+                        );
+                    } else {
+                        self.cursor_position = (self.cursor_position.0 - 1, self.cursor_position.1);
+                    }
+                }
+            }
+
             _ => {}
         }
         Ok(())
