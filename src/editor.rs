@@ -1,17 +1,22 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use log::debug;
 use std::io::stdout;
 use std::io::{stdin, Error, Write};
 use termion::event::Key;
 use termion::input::TermRead;
-use termion::raw::IntoRawMode;
 
 use crate::terminal::Terminal;
+
+#[derive(Debug)]
+struct CursorPosition {
+    x: u16,
+    y: u16,
+}
 
 pub struct Editor {
     terminal: Terminal,
     text: String,
-    cursor_position: (u16, u16),
+    cursor_position: CursorPosition,
     save: bool,
     quit: bool,
 }
@@ -21,7 +26,7 @@ impl Editor {
         Ok(Self {
             terminal: Terminal::default()?,
             text: "".into(),
-            cursor_position: (1, 1),
+            cursor_position: CursorPosition { x: 1, y: 1 },
             save: false,
             quit: false,
         })
@@ -49,9 +54,15 @@ impl Editor {
             Key::Char(a) => {
                 if a == '\n' {
                     self.text.push('\r');
-                    self.cursor_position = (1, self.cursor_position.1 + 1);
+                    self.cursor_position = CursorPosition {
+                        x: 1,
+                        y: self.cursor_position.y + 1,
+                    };
                 } else {
-                    self.cursor_position = (self.cursor_position.0 + 1, self.cursor_position.1);
+                    self.cursor_position = CursorPosition {
+                        x: self.cursor_position.x + 1,
+                        y: self.cursor_position.y,
+                    };
                 }
                 self.text.push(a);
             }
@@ -59,12 +70,15 @@ impl Editor {
                 if let Some(ch) = self.text.pop() {
                     if ch == '\n' {
                         self.text.pop();
-                        self.cursor_position = (
-                            1 + self.text.split('\n').last().unwrap().len() as u16,
-                            self.cursor_position.1 - 1,
-                        );
+                        self.cursor_position = CursorPosition {
+                            x: 1 + self.text.split('\n').last().unwrap().len() as u16,
+                            y: self.cursor_position.y - 1,
+                        };
                     } else {
-                        self.cursor_position = (self.cursor_position.0 - 1, self.cursor_position.1);
+                        self.cursor_position = CursorPosition {
+                            x: self.cursor_position.x - 1,
+                            y: self.cursor_position.y,
+                        };
                     }
                 }
             }
@@ -83,7 +97,7 @@ impl Editor {
         print!("{}", self.text);
         print!(
             "{}",
-            termion::cursor::Goto(self.cursor_position.0, self.cursor_position.1)
+            termion::cursor::Goto(self.cursor_position.x, self.cursor_position.y)
         );
         stdout().flush()?;
 
