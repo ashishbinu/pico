@@ -2,6 +2,7 @@ use anyhow::Result;
 use log::debug;
 use std::io::stdout;
 use std::io::{stdin, Error, Write};
+use std::process;
 use termion::event::Key;
 use termion::input::TermRead;
 
@@ -35,20 +36,32 @@ impl Editor {
     pub fn run(&mut self) -> Result<()> {
         loop {
             if self.quit {
-                die(&anyhow::anyhow!("quit"));
-                break Ok(());
+                Self::quit()?;
             }
             if let Err(err) = self.refresh_screen() {
-                die(&err);
+                Self::die(&err);
             }
             if let Err(err) = self.process_keypress() {
-                die(&err);
+                Self::die(&err);
             }
         }
     }
 
+    fn quit() -> Result<()> {
+        // FIX: This removes the previous command history from the screen. Also messes up the
+        // output somehow. Any command run after quiting will have wonky output
+        Self::clear_screen()?;
+        process::exit(0);
+    }
+
+    fn clear_screen() -> Result<()> {
+        print!("{}{}", termion::clear::All, termion::cursor::Goto(1, 1));
+        stdout().flush()?;
+        Ok(())
+    }
+
     fn process_keypress(&mut self) -> Result<()> {
-        let key = read_key()?;
+        let key = Self::read_key()?;
         match key {
             Key::Ctrl('q') => self.quit = true,
             Key::Char(a) => {
@@ -103,18 +116,18 @@ impl Editor {
 
         Ok(())
     }
-}
 
-fn read_key() -> Result<Key, Error> {
-    let mut it = stdin().keys();
-    loop {
-        if let Some(key) = it.next() {
-            return key;
+    fn die(e: &anyhow::Error) {
+        Self::clear_screen();
+        panic!("{}", e);
+    }
+
+    fn read_key() -> Result<Key, Error> {
+        let mut it = stdin().keys();
+        loop {
+            if let Some(key) = it.next() {
+                return key;
+            }
         }
     }
-}
-
-fn die(e: &anyhow::Error) {
-    print!("{}{}", termion::clear::All, termion::cursor::Goto(1, 1));
-    panic!("{}", e);
 }
