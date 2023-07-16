@@ -1,7 +1,6 @@
 use anyhow::Result;
 use log::debug;
-use std::io::stdout;
-use std::io::{stdin, Error, Write};
+use std::io::{self, stdout, Write};
 use std::process;
 use termion::event::Key;
 use termion::input::TermRead;
@@ -26,7 +25,7 @@ impl Editor {
     pub fn default() -> Result<Self> {
         Ok(Self {
             terminal: Terminal::default()?,
-            text: "".into(),
+            text: String::new(),
             cursor_position: CursorPosition { x: 1, y: 1 },
             save: false,
             quit: false,
@@ -38,18 +37,12 @@ impl Editor {
             if self.quit {
                 Self::quit()?;
             }
-            if let Err(err) = self.refresh_screen() {
-                Self::die(&err);
-            }
-            if let Err(err) = self.process_keypress() {
-                Self::die(&err);
-            }
+            self.refresh_screen()?;
+            self.process_keypress()?;
         }
     }
 
     fn quit() -> Result<()> {
-        // FIX: This removes the previous command history from the screen. Also messes up the
-        // output somehow. Any command run after quiting will have wonky output
         Self::clear_screen()?;
         process::exit(0);
     }
@@ -67,15 +60,10 @@ impl Editor {
             Key::Char(a) => {
                 if a == '\n' {
                     self.text.push('\r');
-                    self.cursor_position = CursorPosition {
-                        x: 1,
-                        y: self.cursor_position.y + 1,
-                    };
+                    self.cursor_position.x = 1;
+                    self.cursor_position.y += 1;
                 } else {
-                    self.cursor_position = CursorPosition {
-                        x: self.cursor_position.x + 1,
-                        y: self.cursor_position.y,
-                    };
+                    self.cursor_position.x += 1;
                 }
                 self.text.push(a);
             }
@@ -83,19 +71,13 @@ impl Editor {
                 if let Some(ch) = self.text.pop() {
                     if ch == '\n' {
                         self.text.pop();
-                        self.cursor_position = CursorPosition {
-                            x: 1 + self.text.split('\n').last().unwrap().len() as u16,
-                            y: self.cursor_position.y - 1,
-                        };
+                        self.cursor_position.x = 1 + self.text.split('\n').last().unwrap().len() as u16;
+                        self.cursor_position.y -= 1;
                     } else {
-                        self.cursor_position = CursorPosition {
-                            x: self.cursor_position.x - 1,
-                            y: self.cursor_position.y,
-                        };
+                        self.cursor_position.x -= 1;
                     }
                 }
             }
-
             _ => {}
         }
         Ok(())
@@ -117,16 +99,12 @@ impl Editor {
         Ok(())
     }
 
-    fn die(e: &anyhow::Error) {
-        Self::clear_screen();
-        panic!("{}", e);
-    }
-
-    fn read_key() -> Result<Key, Error> {
-        let mut it = stdin().keys();
+    fn read_key() -> Result<Key> {
+        let stdin = io::stdin();
+        let mut keys = stdin.keys();
         loop {
-            if let Some(key) = it.next() {
-                return key;
+            if let Some(key) = keys.next() {
+                return key.map_err(Into::into);
             }
         }
     }
